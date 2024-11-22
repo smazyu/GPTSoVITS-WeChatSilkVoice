@@ -1,6 +1,18 @@
 import itchat
 import sys
 import io
+import os
+import subprocess
+import requests
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
+from typing import Optional
+import os
+from pydub import AudioSegment
+
+# 设置 ffmpeg 路径
+os.environ["PATH"] += os.pathsep + "F:\\ffmpeg-master-latest-win64-gpl\\bin"
+AudioSegment.ffmpeg = "F:\\ffmpeg-master-latest-win64-gpl\\bin\\ffmpeg.exe"
 
 # 确保输出流使用 UTF-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -11,6 +23,89 @@ itchat.auto_login()
 
 # 获取好友列表
 friends = itchat.get_friends()
+
+# 下载音频
+def download_audio_segment(mp3_url: str) -> str:
+    filename = mp3_url.split('/')[-1]
+    save_path = os.path.join(".", filename)
+
+    response = requests.get(mp3_url)
+    with open(save_path, 'wb') as file:
+        file.write(response.content)
+
+    return save_path
+
+# 检查音频文件是否损坏
+def check_mp3_corruption(audio_path: str) -> bool:
+    try:
+        audio = AudioSegment.from_mp3(audio_path)
+        return len(audio) == 0
+    except CouldntDecodeError:
+        return True
+
+# 获取音频文件时长
+def get_duration(audio_file_path: str) -> float:
+    file_extension = os.path.splitext(audio_file_path)[1].lower().replace('.', '')
+
+    if file_extension == 'pcm':
+        audio = AudioSegment(
+            data=open(audio_file_path, 'rb').read(),
+            sample_width=2,
+            frame_rate=24000,
+            channels=1
+        )
+    else:
+        audio = AudioSegment.from_file(audio_file_path, format=file_extension)
+
+    duration_in_ms = len(audio)
+    duration_in_s = duration_in_ms / 1000
+    return duration_in_s
+
+# 将 MP3 转换为 SILK 格式
+def convert_mp3_to_silk(mp3_file_path: str, silk_file_path: str) -> bool:
+    try:
+        ffmpeg = "ffmpeg"
+        pcm_file_path = "intermediate.pcm"
+        # 使用 ffmpeg 将 MP3 转换为 PCM 格式
+        command = [ffmpeg, "-y", "-i", mp3_file_path, "-f", "s16le", "-ar", "24000", "-ac", "1", pcm_file_path]
+        subprocess.run(command, check=True)
+
+        # 使用 ffmpeg 将 PCM 转换为 SILK 格式
+        silk_command = [ffmpeg, "-y", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", pcm_file_path, silk_file_path]
+        subprocess.run(silk_command, check=True)
+        return True
+    except Exception as e:
+        print(f"转换失败：{e}")
+        return False
+
+# 主逻辑
+def main(mp3_url: str, silk_file_path: str) -> Optional[float]:
+    save_path = download_audio_segment(mp3_url)
+    print("下载音频片段")
+    if not os.path.exists(save_path):
+        return None
+
+    check_result = check_mp3_corruption(save_path)
+    print("检查 MP3 是否损坏")
+    if check_result:
+        return None
+
+    convert_bool = convert_mp3_to_silk(save_path, silk_file_path)
+    print("转换 MP3 为 SILK 格式")
+    if not convert_bool:
+        return None
+
+    duration = get_duration("intermediate.pcm")
+    print("获取时长")
+    print(f"转换成功：{save_path} -> {silk_file_path}")
+    print(f"MP3 时长为 {duration} 秒.")
+    return duration
+
+
+if __name__ == '__main__':
+    mp3_url = "https://private.vhost205.dlvip.com.cn/silk/Aria.mp3"
+    silk_file_path = "test.silk"
+    main(mp3_url, silk_file_path)
 
 # 打印好友列表，供用户选择
 print("好友列表：")

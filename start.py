@@ -7,12 +7,10 @@ import requests
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
 from typing import Optional
-import os
-from pydub import AudioSegment
+import pilk  # 假设有 pilk 库来编码 SILK 格式
 
 # 设置 ffmpeg 路径
-os.environ["PATH"] += os.pathsep + "F:\\ffmpeg-master-latest-win64-gpl\\bin"
-AudioSegment.ffmpeg = "F:\\ffmpeg-master-latest-win64-gpl\\bin\\ffmpeg.exe"
+AudioSegment.ffmpeg = r"F:\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"  # 替换成你自己的路径
 
 # 确保输出流使用 UTF-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -24,7 +22,7 @@ itchat.auto_login()
 # 获取好友列表
 friends = itchat.get_friends()
 
-# 下载音频
+下载音频
 def download_audio_segment(mp3_url: str) -> str:
     filename = mp3_url.split('/')[-1]
     save_path = os.path.join(".", filename)
@@ -70,9 +68,11 @@ def convert_mp3_to_silk(mp3_file_path: str, silk_file_path: str) -> bool:
         command = [ffmpeg, "-y", "-i", mp3_file_path, "-f", "s16le", "-ar", "24000", "-ac", "1", pcm_file_path]
         subprocess.run(command, check=True)
 
-        # 使用 ffmpeg 将 PCM 转换为 SILK 格式
-        silk_command = [ffmpeg, "-y", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", pcm_file_path, silk_file_path]
-        subprocess.run(silk_command, check=True)
+        # 使用 pilk 将 PCM 转换为 SILK 格式
+        silk_data = pilk.encode(pcm_file_path, 24000)
+        with open(silk_file_path, 'wb') as silk_file:
+            silk_file.write(silk_data)
+
         return True
     except Exception as e:
         print(f"转换失败：{e}")
@@ -101,7 +101,6 @@ def main(mp3_url: str, silk_file_path: str) -> Optional[float]:
     print(f"MP3 时长为 {duration} 秒.")
     return duration
 
-
 if __name__ == '__main__':
     mp3_url = "https://private.vhost205.dlvip.com.cn/silk/Aria.mp3"
     silk_file_path = "test.silk"
@@ -127,7 +126,7 @@ while True:
         else:
             print("请输入有效的数字编号。")
             continue
-    
+
     selected_friend = friends[friend_choice]
 
     # 输入 SILK 文件路径
